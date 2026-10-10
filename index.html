@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arbitrage de séquence 360°</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pannellum/2.5.6/pannellum.css">
+<style>
+*{box-sizing:border-box}body{margin:0;font:13px/1.4 system-ui,sans-serif;color:#1b2a33;background:#eef1f3;display:grid;grid-template:"m p" 1fr "c p" 96px/1fr 380px;height:100vh}
+#map{grid-area:m}#cv{grid-area:c;width:100%;height:96px;background:#fff;border-top:1px solid #c5ced4;cursor:pointer}
+aside{grid-area:p;overflow:auto;padding:10px;background:#fff;border-left:1px solid #c5ced4}
+h1{font-size:15px;margin:0 0 8px}h2{font-size:13px;margin:12px 0 4px}
+label{display:flex;justify-content:space-between;gap:6px;margin:2px 0}input[type=number]{width:64px}
+button,.btn{font:inherit;padding:4px 8px;border:1px solid #0f766e;background:#fff;color:#0f766e;border-radius:4px;cursor:pointer;display:inline-block;margin:2px 2px 2px 0}
+button.p{background:#0f766e;color:#fff}
+#pano{height:200px;background:#dfe5e9;margin:6px 0;display:grid;place-items:center;color:#5c6b75;text-align:center;padding:6px}
+.z{display:flex;gap:6px;padding:3px 4px;border-bottom:1px solid #e3e8eb;cursor:pointer}.z:hover{background:#e6f3f1}
+.d{width:10px;height:10px;border-radius:50%;margin-top:4px;flex:none}
+#pg{height:10px;background:#d5dce1;border-radius:5px;overflow:hidden;display:flex;margin-top:6px}#pg i{display:block;height:100%}
+#pano{position:sticky;top:calc(var(--sumh,0px) - 10px);z-index:6}#bubble{position:absolute;z-index:1000;display:none}
+#bin{position:relative;width:min(480px,40vw);height:min(320px,42vh);min-width:200px;min-height:180px;resize:both;overflow:hidden;border:3px solid #111;border-radius:6px;background:#000;box-shadow:0 4px 18px rgba(0,0,0,.5)}
+#bin #pano{position:absolute;inset:0;height:auto;margin:0;padding:0}
+#bbar{position:absolute;left:0;right:20px;bottom:0;z-index:8;display:flex;gap:6px;align-items:center;background:rgba(0,0,0,.6);color:#fff;padding:3px 6px;font-size:12px}
+#bbar button{margin:0;padding:1px 7px}#bbar input{width:52px}
+#bubble::before{content:'';position:absolute;top:var(--ay,50%);margin-top:-10px;border:10px solid transparent}
+#bubble.r::before{left:-20px;border-right-color:#111}#bubble.l::before{right:-20px;border-left-color:#111}
+.lmk{width:18px;height:18px;box-sizing:border-box;background:#fff;border:3px solid #111;transform:rotate(45deg);box-shadow:0 0 0 2px #fff}.lmk.ms{background:#16a34a}
+#cdlg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:grid;place-items:center}#cdlg[hidden]{display:none}
+#cbox{background:#fff;width:min(1150px,95vw);max-height:92vh;display:flex;flex-direction:column;border-radius:8px;overflow:hidden}
+#chd{padding:10px 12px;border-bottom:1px solid #c5ced4}#cgrid{overflow:auto;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;background:#eef1f3}
+.ct{position:relative;border:4px solid #16a34a;border-radius:4px;cursor:pointer;background:#000}.ct.x{border-color:#9aa5ad;opacity:.45}.ct canvas{display:block;width:100%;height:auto}
+.ct .lb{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);color:#fff;font-size:11px;padding:1px 4px;display:flex;justify-content:space-between;align-items:center}.ct .lb button{margin:0;padding:0 5px}
+.ccl{background:#f77f00;color:#fff;border:2px solid #fff;border-radius:11px;font:bold 11px/18px system-ui;text-align:center;padding:0 5px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5)}.ccl.a{background:#1d4ed8}.ccl.d{background:#16a34a}
+#cl{max-height:220px;overflow:auto}
+#sum{position:sticky;top:-10px;z-index:30;margin:-10px -10px 8px;padding:8px 10px 6px;background:#fff;border-bottom:2px solid #0f766e;box-shadow:0 2px 6px rgba(0,0,0,.15);font-size:12px}
+#sumh{display:flex;justify-content:space-between;align-items:center}#sumh b{font-size:14px}#sumt{margin:0;padding:0 7px}
+#sum.c #sumx{display:none}#sumx>div{margin-top:2px}.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px!important}
+.chip{background:#e6edf1;border-radius:10px;padding:1px 8px;font-size:11px}.chip.g{background:#d1fae5;color:#065f46}.chip.w{background:#ffedd5;color:#9a3412}.la{color:#5c6b75;font-size:11px}
+.anc{width:26px;height:26px;border-radius:50%;background:#111;color:#facc15;border:3px solid #facc15;display:grid;place-items:center;font-size:14px;box-shadow:0 0 0 2px #111,0 2px 6px rgba(0,0,0,.5)}
+#st span{display:inline-block;margin:0 8px 2px 0}
+</style></head><body>
+<div id="map"></div><canvas id="cv"></canvas>
+<aside>
+<div id="sum"><div id="sumh"><b>Arbitrage avant Panoramax</b><button id="sumt" title="Réduire / déplier le résumé">▾</button></div>
+<div id="pg"><i id="p1" style="background:#16a34a;width:0"></i><i id="p2" style="background:#facc15;width:0"></i></div><div id="pgt">Avancement : 0 %</div>
+<div id="sumx"></div></div>
+<label class="btn" style="background:#0f766e;color:#fff">1. Ouvrir le dossier de photos<input id="imgs" type="file" webkitdirectory multiple hidden></label>
+<label class="btn">ou un CSV ExifTool<input id="csv" type="file" accept=".csv" hidden></label>
+<div id="imp">Les positions sont lues directement dans les métadonnées EXIF des JPG.</div>
+<details id="pxd"><summary><b>Panoramax : lire et corriger une séquence en ligne</b></summary>
+<div><small>Séquence (URL de l'API ou identifiant)</small><input id="pxurl" type="text" style="width:100%" placeholder="https://panoramax.openstreetmap.fr/api/collections/…"></div>
+<div><small>Jeton d'accès (JWT) — reste dans la page, jamais enregistré</small><input id="pxtok" type="password" style="width:100%"></div>
+<div><button class="p" id="pxload">Charger la séquence</button><button id="pxtest">Tester la connexion</button></div>
+<label><span><input id="pxh" type="checkbox"> mettre aussi le cap (heading) à jour</span></label>
+<label><span><input id="pxv" type="checkbox"> masquer les photos exclues (visibilité « owner-only »)</span></label>
+<label><span><input id="pxt" type="checkbox" checked> poser les tags de traçabilité (sémantiques <code>reposition:*</code>, ancre au format <code>osm|…</code>)</span></label>
+<div><button id="pxone">Envoyer la photo sélectionnée</button><button class="p" id="pxall">Envoyer toutes les modifications</button><button id="pxrst">Rétablir les valeurs chargées</button></div>
+<div id="pxs"></div></details>
+<div id="st" style="margin-top:6px"></div>
+<h2>Seuils de vigilance</h2>
+<label>Arrêt si vitesse &lt; (km/h)<input id="stop" type="number" value="3"></label>
+<label>Dense si pas &lt; (m)<input id="dense" type="number" value="5"></label>
+<label>Espacé si pas &gt; (m)<input id="sparse" type="number" value="40"></label>
+<label>Vitesse max (km/h)<input id="vmax" type="number" value="90"></label>
+<label>Virage si angle &gt; (°)<input id="turn" type="number" value="30"></label>
+<div><button id="re">Appliquer</button> Couleur : <select id="mode"><option value="fl">vigilance</option><option value="d">pas (m)</option><option value="av">avancement</option></select></div>
+<h2>Éclaircir</h2>
+<label>Espacement minimal (m)<input id="msp" type="number" value="10"></label>
+<div><button id="thin">Éclaircir</button><button id="rst">Tout garder</button></div>
+<h2>Photo sélectionnée</h2>
+<div id="info">Cliquez un point (← → pour naviguer, x pour garder/exclure).</div>
+<div><button class="p" id="pp">▶ Lecture</button> <select id="spd"><option value="0.5">0,5 ph/s</option><option value="1" selected>1 ph/s</option><option value="2">2 ph/s</option><option value="4">4 ph/s</option></select> <button id="ex">Mode examen</button></div>
+<label><span><input id="fl" type="checkbox" checked> la carte suit la photo</span></label>
+<label><span><input id="pa" type="checkbox" checked> pause aux ancres et repères OSM</span></label>
+<div id="pano">Visionneuse 360° : cliquez un point après avoir ouvert le dossier.</div>
+<div><button id="kp">Garder / exclure</button><small> Glissez le marqueur pour recaler.</small></div>
+<h2>Ancres</h2>
+<div><select id="atype"><option>passage piéton</option><option>ligne de stop</option><option>cédez-le-passage</option><option>pont</option><option>intersection</option><option>poteau</option><option>borne</option><option>îlot</option><option>bordure séparatrice</option><option>flèche de rabattement</option><option>tracé hachuré</option><option>dépassement</option><option>autre</option></select> <button id="ka">Ancre (a)</button></div>
+<label><span><input id="rnd" type="checkbox"> arrondir sur les positions existantes</span></label>
+<label><span><input id="alat" type="checkbox"> corriger aussi latéralement (écart perpendiculaire des ancres)</span></label>
+<label>Décalage latéral max (m)<input id="lmax" type="number" value="15" min="0"></label>
+<div><button class="p" id="redis">Redistribuer</button><button id="rda">Tout annuler</button></div>
+<label>Décalage max (photos, 0 = libre)<input id="nmax" type="number" value="2" min="0"></label>
+<div id="al">Aucune ancre.</div><div id="cm"></div>
+<h2>Repères OSM le long de la séquence</h2>
+<label><span><input id="pl" type="checkbox"> inclure les poteaux électriques</span></label>
+<label><span><input id="mk" type="checkbox"> inclure îlots et bordures (si cartographiés)</span></label>
+<button id="ov">Charger les repères</button><div id="ol"></div>
+<h2>Doublons (clusters à arbitrer)</h2>
+<label>Rayon du cluster (m)<input id="crad" type="number" value="6" min="1"></label>
+<label>Photos minimum<input id="cmin" type="number" value="3" min="2"></label>
+<div><button class="p" id="cdet">Détecter les doublons</button></div>
+<div>Règle auto <select id="crule"><option value="mid">au centre</option><option value="first">première</option><option value="last">dernière</option></select> <button id="cauto">Appliquer aux non arbitrés</button></div>
+<div id="ctx"></div><div id="cl"></div>
+<h2>Zones de vigilance</h2><div id="zl"></div>
+<h2>Export</h2>
+<button class="p" id="exp">decisions.csv</button><button class="p" id="expx">a_exclure.txt</button>
+<label>Décalage de cap de l'image (°)<input id="hoff" type="number" value="0"></label>
+<button class="p" id="expe">Exporter le CSV pour ExifTool</button>
+<small>Génère corrections_exiftool.csv (photos gardées : position corrigée + cap). À copier dans le dossier des photos, puis : <code>exiftool -csv=corrections_exiftool.csv .</code> (ExifTool garde une copie *_original ; ajoutez <code>-overwrite_original</code> pour ne pas la garder).</small>
+<h2>Écrire dans les photos (Chrome / Edge)</h2>
+<label>Destination <select id="wd"><option value="c">sous-dossier « calees » (originaux intacts)</option><option value="o">écraser les originaux</option></select></label>
+<label><span><input id="wh" type="checkbox" checked> écrire aussi le cap (GPSImgDirection)</span></label>
+<button class="p" id="wr">Écrire les positions calées</button><div id="wp"></div>
+<h2>Traçabilité du calage (EXIF)</h2>
+<label><span><input id="tr" type="checkbox" checked> écrire l'historique du calage dans chaque photo modifiée</span></label>
+<div><button id="rvt">Restaurer les positions d'origine</button><button id="csx">Journal du dernier changeset</button></div>
+<small>Champ <code>GPSAreaInformation</code> (« reposition/1 » + JSON en anglais : orig, state, method, anchor.theme, changeset, timestamp ISO 8601, hist) et <code>GPSProcessingMethod</code> = MANUAL. Ces champs restent lisibles par ExifTool et visibles via l'API Panoramax.</small>
+<h2>Session de calage</h2>
+<div><button id="sesx">Enregistrer le calage (.json)</button><label class="btn">Restaurer un calage…<input id="sesi" type="file" accept=".json" hidden></label></div>
+<small>La session (ancres, exclusions, clusters, photos examinées, réglages) est aussi enregistrée automatiquement : fichier <code>calage_session.json</code> dans le dossier (Chrome / Edge) et mémoire du navigateur. Elle vous est proposée à la réouverture de la même source.</small>
+<h2>Écriture directe dans les photos (Chrome / Edge)</h2>
+<label>Destination <select id="wm"><option value="sub">sous-dossier « a_televerser » (originaux intacts)</option><option value="over">écraser les JPG originaux</option></select></label>
+<label><span><input id="wdir" type="checkbox" checked> écrire aussi le cap (avec le décalage ci-dessus)</span></label>
+<div><button id="wone">Tester sur la photo sélectionnée</button><button class="p" id="wall">Écrire les photos gardées</button><button id="wx">Arrêter</button></div>
+<div id="wst"><small>Choisissez ensuite le dossier des photos : seul le bloc GPS de l'EXIF est modifié, l'image, le XMP 360° et le reste sont copiés tels quels.</small></div>
+</aside>
+<div id="cdlg" hidden><div id="cbox"><div id="chd"></div><div id="cgrid"></div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pannellum/2.5.6/pannellum.js"></script>
+<script>
+const $=id=>document.getElementById(id),COL={arrêt:'#d62828',vitesse:'#c026d3',trou:'#f77f00',virage:'#1d4ed8',espacé:'#7c3aed',dense:'#0891b2',écart:'#854d0e',courbe:'#be185d',forme:'#be185d'};
+let SRC=null,META={},LAST='',APPLIED=false,PXSENT=false,SAVED='',LASTSAVE='',CL=[],CM={},CD={},cur=-1,A={},LM=[],R=[],sel=-1,iv=2,imgs={},pv=null,url=null,mk=null;
+const map=L.map('map',{preferCanvas:true}).setView([44,5],9);
+const wm=(l,f)=>`https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${l}&STYLE=normal&FORMAT=${f}&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`;
+const bases={
+ 'IGN – BD ORTHO (aérien)':L.tileLayer(wm('ORTHOIMAGERY.ORTHOPHOTOS','image/jpeg'),{maxZoom:20,maxNativeZoom:19,attribution:'© IGN'}),
+ 'IGN – Plan':L.tileLayer(wm('GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2','image/png'),{maxZoom:20,maxNativeZoom:19,attribution:'© IGN'}),
+ 'OpenStreetMap':L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),
+ 'OpenStreetMap France':L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{maxZoom:20,maxNativeZoom:19,attribution:'© OpenStreetMap France'}),
+ 'Esri – Imagerie (aérien)':L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,maxNativeZoom:19,attribution:'© Esri'})};
+bases['IGN – BD ORTHO (aérien)'].addTo(map);L.control.layers(bases,null,{collapsed:false}).addTo(map);
+const wn=L.control({position:'bottomleft'});let te=0;
+wn.onAdd=()=>{const d=L.DomUtil.create('div');d.id='warn';d.style.cssText='display:none;background:#fff3cd;border:1px solid #e0a800;border-radius:4px;padding:6px 8px;max-width:360px';
+ d.innerHTML="Les tuiles de fond ne se chargent pas. Ouvrez ce fichier directement dans votre navigateur (pas dans un aperçu intégré) et vérifiez que data.geopf.fr et openstreetmap.org ne sont pas bloqués par le réseau.";return d};wn.addTo(map);
+Object.values(bases).forEach(l=>{l.on('tileerror',()=>{if(++te>=6)$('warn').style.display='block'});l.on('tileload',()=>{te=0;$('warn').style.display='none'})});
+map.on('baselayerchange',()=>{te=0;$('warn').style.display='none'});
+const grp=L.layerGroup().addTo(map),lmg=L.layerGroup().addTo(map),ag=L.layerGroup().addTo(map),cg=L.layerGroup().addTo(map);
+const pt=s=>{const m=String(s||'').match(/(\d+):(\d+):(\d+) (\d+):(\d+):(\d+)/);if(!m)return 0;return Date.UTC(+m[1],m[2]-1,+m[3],+m[4],+m[5],+m[6])/1000};
+$('csv').onchange=async e=>{reset();SRC={t:'csv',n:e.target.files[0].name};META={};const b=await e.target.files[0].arrayBuffer(),u=new Uint8Array(b);
+ const t=new TextDecoder(u[0]==255&&u[1]==254?'utf-16le':'utf-8').decode(b).replace(/^\uFEFF/,'').trim().split(/\r?\n/),h=t[0].split(',');
+ load(t.slice(1).map(l=>{const c=l.split(','),o={};h.forEach((k,i)=>o[k]=c[i]);return o}));trySession()};
+function load(rows){
+ R=rows.map(o=>({f:o.FileName,n:o.Rank!=null?+o.Rank:+(o.FileName.match(/(\d+)\./)||[0,0])[1],t:pt(o.DateTimeOriginal),g:pt(o.GPSDateTime),lat:+o.GPSLatitude,lon:+o.GPSLongitude,alt:o.GPSAltitude,cal:o.cal||null,revert:false,keep:true,ed:false}));
+ R.sort((a,b)=>a.g-b.g||a.f.localeCompare(b.f));let w=0;
+ R.forEach((r,i)=>{if(i&&r.n<R[i-1].n-5000)w++;r.s=r.n+9999*w});
+ const d=[];for(let i=1;i<R.length;i++)d.push(R[i].t-R[i-1].t);d.sort((a,b)=>a-b);iv=d[d.length>>1]||2;
+ R.forEach(r=>{r.lat0=r.lat;r.lon0=r.lon});A={};APPLIED=false;PXSENT=false;CL=[];map.fitBounds(R.map(r=>[r.lat,r.lon]));calc();detect()}
+function dist(a,b){const dx=(a.lon-b.lon)*Math.cos(a.lat*Math.PI/180)*111320,dy=(a.lat-b.lat)*110540;return[Math.hypot(dx,dy),Math.atan2(dx,dy)*180/Math.PI]}
+function calc(){const P=+$('stop').value,D=+$('dense').value,S=+$('sparse').value,V=+$('vmax').value,T=+$('turn').value;
+ R.forEach((r,i)=>{r.fl=[];r.d=0;r.v=0;if(!i)return;const p=R[i-1],[d,b]=dist(r,p);r.d=d;r.b=b;r.v=d/((r.s-p.s)*iv)*3.6;
+  if(r.s-p.s>1)r.fl.push('trou');
+  if(r.v<P)r.fl.push('arrêt');else if(d<D)r.fl.push('dense');
+  if(r.v>V)r.fl.push('vitesse');if(d>S)r.fl.push('espacé');
+  if(i>1&&d>3&&p.d>3&&Math.abs(((b-p.b+540)%360)-180)>T)r.fl.push('virage');if(r.cl)r.fl.push('écart');if(r.cv)r.fl.push('courbe');
+  if(r.rd){const d0=dist({lat:r.lat0,lon:r.lon0},{lat:p.lat0,lon:p.lon0})[0];if(d0>3&&Math.abs(d-d0)/d0>.5)r.fl.push('forme')}})}
+const Y='#facc15',colr=r=>{const m=$('mode').value;return !r.keep?'#9aa5ad':m=='d'?`hsl(${Math.max(0,140-r.d*3.5)},70%,45%)`:r.rd?Y:m=='av'?(r.ex?'#16a34a':'#b6c2ca'):r.fl.length?COL[r.fl[0]]:'#0f766e'};
+function draw(){grp.clearLayers();if(!R.length)return;R.forEach((r,i)=>r.ex=!!(r.sn||r.rd||r.tr||A[i]));
+ if(Object.keys(A).length)L.polyline(R.map(r=>[r.lat0,r.lon0]),{color:'#888',weight:2,dashArray:'4 4'}).addTo(grp);
+ L.polyline(R.filter(r=>r.keep).map(r=>[r.lat,r.lon]),{color:'#1b2a33',weight:1,opacity:.5}).addTo(grp);
+ R.forEach((r,i)=>L.circleMarker([r.lat,r.lon],{radius:r.keep?(r.rd?4.5:3.5):2,color:colr(r),weight:1,fillOpacity:.9}).on('click',()=>pick(i,false)).addTo(grp));
+ anch();cmap();stats();sum();zones();alist();chart();if(sel>=0)mark()}
+function prog(){const n=R.length;let ex=0,rd=0;R.forEach((r,i)=>{if(r.rd)rd++;if(r.ex)ex++});
+ $('p1').style.width=(ex-rd)/n*100+'%';$('p2').style.width=rd/n*100+'%';
+ $('pgt').innerHTML=`Examinées : <b>${ex}</b> / ${n} (${(ex/n*100).toFixed(0)} %) · <span style="background:#facc15;padding:0 4px">redistribuées ${rd}</span> · ancres ${Object.keys(A).length}`}
+function stats(){prog();const k=R.filter(r=>r.keep),km=k.reduce((a,r)=>a+r.d,0)/1000,c={};R.forEach(r=>r.fl.forEach(f=>c[f]=(c[f]||0)+1));
+ const ds=k.map(r=>r.d).filter(x=>x).sort((a,b)=>a-b);
+ $('st').innerHTML=`<b>${k.length}</b>/${R.length} photos gardées · ${km.toFixed(1)} km · pas médian ${(ds[ds.length>>1]||0).toFixed(1)} m<br>`+Object.keys(c).map(f=>`<span><i class="d" style="display:inline-block;background:${COL[f]}"></i> ${f} ${c[f]}</span>`).join('')}
+function zones(){const z=[];R.forEach((r,i)=>['arrêt','trou','vitesse','espacé','écart','virage'].forEach(f=>{if(!r.fl.includes(f))return;
+ const l=z[z.length-1]&&z.findLast(q=>q.f==f);if(l&&l.e==i-1&&f!='virage'){l.e=i;l.len+=r.d}else z.push({f,s:i,e:i,len:r.d})}));
+ z.sort((a,b)=>a.s-b.s);
+ $('zl').innerHTML=z.filter(q=>q.f!='virage'||0).map((q,j)=>`<div class="z" data-i="${q.s}"><i class="d" style="background:${COL[q.f]}"></i><span><b>${q.f}</b> ${R[q.s].f}${q.e>q.s?' → '+R[q.e].f:''} · ${q.e-q.s+1} ph.</span></div>`).join('')||'Aucune';
+ document.querySelectorAll('.z').forEach(e=>e.onclick=()=>pick(+e.dataset.i,true))}
+function chart(){const c=$('cv'),w=c.width=c.clientWidth,h=c.height=96,x=c.getContext('2d');x.clearRect(0,0,w,h);const n=R.length;if(!n)return;
+ CL.forEach(c=>{x.fillStyle=c.st=='done'?'rgba(22,163,74,.2)':c.st=='auto'?'rgba(29,78,216,.2)':'rgba(247,127,0,.3)';x.fillRect(c.s/n*w,0,Math.max(2,(c.e-c.s+1)/n*w),h)});
+ R.forEach((r,i)=>{x.fillStyle=colr(r);const bh=Math.min(r.d,50)/50*(h-14);x.fillRect(i/n*w,h-7-bh,Math.max(1,w/n),bh)});
+ R.forEach((r,i)=>{x.fillStyle=r.rd?Y:r.ex?'#16a34a':'#d5dce1';x.fillRect(i/n*w,h-5,Math.max(1,w/n),5)});
+ x.fillStyle='#64748b';LM.forEach(l=>x.fillRect(l.bi/n*w,0,2,8));x.fillStyle='#111';Object.keys(A).forEach(i=>x.fillRect(i/n*w,0,3,16));x.fillStyle='#1b2a33';if(sel>=0)x.fillRect(sel/n*w,0,2,h);
+ x.strokeStyle='#999';x.setLineDash([3,3]);[+$('dense').value,+$('sparse').value].forEach(m=>{const y=h-7-m/50*(h-14);x.beginPath();x.moveTo(0,y);x.lineTo(w,y);x.stroke()})}
+$('cv').onclick=e=>{if(R.length)pick(Math.min(R.length-1,Math.floor(e.offsetX/$('cv').clientWidth*R.length)),true)};
+function mark(){const r=R[sel];if(mk)map.removeLayer(mk);
+ mk=L.marker([r.lat,r.lon],{draggable:true}).addTo(map).on('drag',place).on('dragend',e=>{const p=e.target.getLatLng();r.lat=p.lat;r.lon=p.lng;r.ed=true;setA(sel,A[sel]?A[sel].type:"manuel");calc();draw()})}
+const PXI={},UC={},imgUrl=f=>PXI[f]?PXI[f].sd:imgs[f]?(UC[f]||(UC[f]=URL.createObjectURL(imgs[f]))):null;
+function pick(i,pan,lite){sel=i;const r=R[i];r.sn=true;
+ $('info').innerHTML=`<b>${r.f}</b>${r.keep?'':' (exclue)'}${A[i]?' ⚓ ancre : '+A[i].type:r.ed?' (recalée)':''}<br>pas ${r.d.toFixed(1)} m · ${r.v.toFixed(0)} km/h · alt ${r.alt} m<br>${r.fl.join(', ')||'RAS'}${r.cal?`<br>🕓 calage ${esc(String(r.cal.t||'').slice(0,16).replace('T',' '))} · ${esc(r.cal.st||'')} · ${esc(r.cal.m||'')} · origine à ${r.cal.d!=null?r.cal.d:'?'} m`+(r.cal.a?` · ancre : ${esc(r.cal.a.t)}`:''):''}`;
+ if(pan)mfocus(Math.max(map.getZoom(),17));
+ const u=imgUrl(r.f);
+ if(u){let v={yaw:0,pitch:0,hfov:100};if(pv){try{v={yaw:pv.getYaw(),pitch:pv.getPitch(),hfov:pv.getHfov()}}catch(e){}pv.destroy();pv=null}
+  $('pano').textContent='';pv=pannellum.viewer('pano',{type:'equirectangular',panorama:u,autoLoad:true,yaw:v.yaw,pitch:v.pitch,hfov:v.hfov});
+  if(PXI[r.f])pv.on('error',()=>{try{pv.destroy()}catch(e){}pv=null;$('pano').innerHTML='<img src="'+u+'" style="width:100%;height:100%;object-fit:contain" alt="aperçu à plat">'});
+  [i+1,i+2].forEach(j=>{if(R[j]){const q=imgUrl(R[j].f);if(q)new Image().src=q}})}
+ if(lite){r.ex=true;mark();prog();chart()}else draw();place();$('bcap').textContent=r.f}
+let pl=null;
+function play(){if(pl){clearInterval(pl);pl=null;$('pp').textContent='▶ Lecture';$('bb2').textContent='▶';draw();return}
+ if(!R.length)return;if(sel<0||sel>=R.length-1)sel=0;$('pp').textContent='⏸ Pause';$('bb2').textContent='⏸';
+ pl=setInterval(()=>{if(sel>=R.length-1){play();return}
+  pick(sel+1,false,true);if($('fl').checked)mfocus();
+  if($('pa').checked&&(A[sel]||LM.some(l=>l.bi==sel)))play()},1000/+$('spd').value)}
+$('pp').onclick=play;$('spd').onchange=()=>{if(pl){play();play()}};
+function toggle(){if(sel<0)return;R[sel].keep=!R[sel].keep;calc();draw();pick(sel,false)}
+$('kp').onclick=toggle;$('re').onclick=()=>{calc();draw()};$('mode').onchange=draw;
+$('thin').onclick=()=>{const m=+$('msp').value;let last=null;R.forEach((r,i)=>{if(!last||dist(r,last)[0]>=m||i==R.length-1||r.fl.includes('trou')){r.keep=true;last=r}else r.keep=false});
+ const k=R.filter(r=>r.keep);let p=null;R.forEach(r=>{r.d=0});k.forEach((r,i)=>{if(i){r.d=dist(r,k[i-1])[0]}});draw()};
+$('rst').onclick=()=>{R.forEach(r=>r.keep=true);calc();draw()};
+addEventListener('keydown',e=>{if(e.target.tagName=='INPUT')return;if(!$('cdlg').hidden){cKey(e);return}if(e.key=='ArrowRight'&&sel<R.length-1)pick(sel+1,true);if(e.key=='ArrowLeft'&&sel>0)pick(sel-1,true);if(e.key=='x')toggle();if(e.key=='a')togA();if(e.key=='p')play()});
+addEventListener('resize',chart);
+const dl=(n,t)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/plain'}));a.download=n;a.click()};
+$('exp').onclick=()=>{const hd=R.map((r,i)=>{if(!r.keep)return'';let j=i+1;while(j<R.length&&!R[j].keep)j++;let a=r,b=R[j];if(!b){let k=i-1;while(k>=0&&!R[k].keep)k--;if(k<0)return'';a=R[k];b=r}return((dist(b,a)[1]+360)%360).toFixed(0)});
+ dl('decisions.csv','FileName,lat,lon,lat0,lon0,alt,heading,keep,edited,anchor,flags,reviewed,redistributed,cluster\n'+R.map((r,i)=>[r.f,r.lat.toFixed(7),r.lon.toFixed(7),r.lat0.toFixed(7),r.lon0.toFixed(7),r.alt,hd[i],+r.keep,+r.ed,A[i]?A[i].type:'',r.fl.join('|'),+!!r.ex,+!!r.rd,CM[i]||''].join(',')).join('\n'))};
+$('expx').onclick=()=>dl('a_exclure.txt',R.filter(r=>!r.keep).map(r=>r.f).join('\n'));
+
+const LT={crossing:'passage piéton',stop:'ligne de stop',give_way:'cédez-le-passage',traffic_signals:'feux',mini_roundabout:'mini-giratoire',bridge:'pont',pole:'poteau',milestone:'borne',island:'îlot',kerb:'bordure'};
+function lty(t){if(t.bridge)return'bridge';if(t.power)return'pole';
+ if(t.traffic_calming=='island'||t['area:highway']=='traffic_island')return'island';if(t.barrier=='kerb')return'kerb';return t.highway}
+const ll=a=>({lat:a.lat,lon:a.lon});
+function anch(){ag.clearLayers();Object.values(A).forEach(a=>{const r=R[a.i];
+ if(Math.abs(a.lat-r.lat)+Math.abs(a.lon-r.lon)>1e-7){L.polyline([[r.lat,r.lon],[a.lat,a.lon]],{color:'#111',weight:2,dashArray:'3 3'}).addTo(ag);L.circleMarker([a.lat,a.lon],{radius:5,color:'#111',weight:2,fillOpacity:0}).addTo(ag)}
+ L.marker([r.lat,r.lon],{icon:L.divIcon({className:'',html:'<div class="anc">⚓</div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:900}).bindTooltip(a.type+' · '+r.f).on('click',()=>pick(a.i,false)).addTo(ag)})}
+function setA(i,type){A[i]={i,lat:R[i].lat,lon:R[i].lon,type:type||$('atype').value}}
+function togA(){if(sel<0)return;if(A[sel])delete A[sel];else setA(sel);draw();pick(sel,false)}
+function alist(){const k=Object.values(A).sort((a,b)=>a.i-b.i),N=+$('nmax').value;let pt=-1e9;
+ $('al').innerHTML=k.length?k.map(a=>{const t=proj(a.i,a.lat,a.lon),lm=proj.lat,raw=t-a.i;let w=` ${raw>=0?'+':''}${raw.toFixed(1)} ph.`;
+  if(N&&Math.abs(raw)>N)w+=' ⚠ > '+N;if(Math.abs(lm)>=1)w+=` · ${Math.abs(lm).toFixed(0)} m à ${lm>0?'gauche':'droite'}${a.type=='dépassement'?' (latéral ignoré : dépassement)':$('alat').checked?'':' (non corrigé)'}`;if(t<pt)w+=' ⚠ ordre inversé';pt=t;
+  return `<div class="z" data-i="${a.i}"><i class="d" style="background:#111"></i><span><b>${a.type}</b> ${R[a.i].f}${w}</span></div>`}).join(''):'Aucune ancre.';
+ $('al').querySelectorAll('.z').forEach(e=>e.onclick=()=>pick(+e.dataset.i,true))}
+const RAMP=20,rawOf=a=>proj(a.i,a.lat,a.lon)-a.i;
+function proj(i,la,lo){const c=Math.cos(la*Math.PI/180)*111320;let best=i,bd=1e18,bs=1;
+ for(let k=Math.max(0,i-30);k<=Math.min(R.length-2,i+30);k++){
+  const ax=(R[k].lon0-lo)*c,ay=(R[k].lat0-la)*110540,bx=(R[k+1].lon0-lo)*c-ax,by=(R[k+1].lat0-la)*110540-ay,L2=bx*bx+by*by,
+   u=L2?Math.max(0,Math.min(1,-(ax*bx+ay*by)/L2)):0,d=Math.hypot(ax+u*bx,ay+u*by);
+  if(d<bd){bd=d;best=k+u;bs=(by*ax-bx*ay)>=0?1:-1}}
+ proj.lat=bs*bd;return best}
+function at(t){const k=Math.max(0,Math.min(R.length-2,Math.floor(t))),u=t-k;
+ return[R[k].lat0+(R[k+1].lat0-R[k].lat0)*u,R[k].lon0+(R[k+1].lon0-R[k].lon0)*u]}
+function curv(t){const n=R.length;if(n<5)return null;const k=Math.max(2,Math.min(n-3,Math.round(t))),c0=Math.cos(R[k].lat0*Math.PI/180),
+ P=j=>[(R[j].lon0-R[k].lon0)*c0*111320,(R[j].lat0-R[k].lat0)*110540],a=P(k-2),c=P(k+2),ab=Math.hypot(a[0],a[1]),bc=Math.hypot(c[0],c[1]),ac=Math.hypot(c[0]-a[0],c[1]-a[1]);
+ if(ab<4||bc<4)return null;const cr=(0-a[0])*(c[1]-0)-(0-a[1])*(c[0]-0);if(Math.abs(cr)<1e-6)return null;return{R:ab*bc*ac/(2*Math.abs(cr)),left:cr>0}}
+function nrm(t){const k0=Math.max(0,Math.min(R.length-2,Math.floor(t)));
+ for(let s=0;s<8;s++)for(const k of[k0+s,k0-s]){if(k<0||k>R.length-2)continue;const c=Math.cos(R[k].lat0*Math.PI/180),x=(R[k+1].lon0-R[k].lon0)*c*111320,y=(R[k+1].lat0-R[k].lat0)*110540,L=Math.hypot(x,y);if(L>=.5)return[-y/L,x/L,c]}
+ return[0,0,1]}
+const ip=(a,b,i,key)=>!a?b[key]*Math.max(0,1-(b.i-i)/RAMP):!b?a[key]*Math.max(0,1-(i-a.i)/RAMP):a.i==b.i?a[key]:a[key]+(b[key]-a[key])*(i-a.i)/(b.i-a.i);
+function redis(){const k=Object.values(A).sort((a,b)=>a.i-b.i);if(!k.length)return;APPLIED=true;
+ const N=+$('nmax').value,n=R.length;
+ const LX=$('alat').checked?Math.max(0,+$('lmax').value||0):0;
+ k.forEach(a=>{a.raw=rawOf(a);a.lm=proj.lat;a.dl=N?Math.max(-N,Math.min(N,a.raw)):a.raw;a.lc=Math.max(-LX,Math.min(LX,a.lm))});
+ const kl=k.filter(a=>a.type!='dépassement');
+ R.forEach((r,i)=>{let a=null,b=null;for(const x of k){if(x.i<=i)a=x;if(x.i>=i&&!b)b=x}
+  const d=ip(a,b,i,'dl');let lt=0;r.cv=false;r.tr=!!(a&&b);
+  if(LX){let a2=null,b2=null;for(const x of kl){if(x.i<=i)a2=x;if(x.i>=i&&!b2)b2=x}if(a2||b2)lt=ip(a2,b2,i,'lc')}
+  let t=Math.max(0,Math.min(n-1,i+d));if($('rnd').checked)t=Math.round(t);
+  const q=at(t);r.lat=q[0];r.lon=q[1];r._t=t;r._lt=lt;
+  r.cl=!!(A[i]&&N&&Math.abs(A[i].raw)>N);if(A[i])r.ed=true});
+ // 2e passe : décalage latéral borné par la courbure (enveloppe ±4 photos) puis lissé (±2 photos, ancres exactes)
+ const lim=R.map(r=>{const c=r._lt?curv(r._t):null;return c&&((c.left&&r._lt>0)||(!c.left&&r._lt<0))?.5*c.R:1e9}),
+  sm=R.map((r,i)=>{let mn=1e9;for(let j=Math.max(0,i-4);j<=Math.min(R.length-1,i+4);j++)mn=Math.min(mn,lim[j]);return Math.abs(r._lt)>mn?Math.sign(r._lt)*mn:r._lt});
+ R.forEach((r,i)=>{r.cv=Math.abs(sm[i])<Math.abs(r._lt)-1e-6;let v=sm[i];
+  if(!A[i]&&v){let s=0,n=0;for(let j=Math.max(0,i-2);j<=Math.min(R.length-1,i+2);j++){s+=sm[j];n++}v=s/n}
+  if(v){const[nx,ny,c]=nrm(r._t);r.lat+=ny*v/110540;r.lon+=nx*v/(111320*c)}
+  r.rd=Math.abs(r.lat-r.lat0)+Math.abs(r.lon-r.lon0)>1e-6});
+ calc();draw();
+ const o=k.filter(a=>N&&Math.abs(a.raw)>N).length;
+ const nc=R.filter(r=>r.cv).length,nf=R.filter(r=>r.fl.includes('forme')).length,ms=[];
+ if(o)ms.push(o+' ancre(s) demandent un décalage > '+N+' photos (plafonné) : voir la vigilance « écart »');
+ if(nc)ms.push(nc+' photo(s) : décalage latéral limité à la moitié du rayon de courbure (vigilance « courbe »)');
+ if(nf)ms.push(nf+' pas déformé(s) de plus de 50 % (vigilance « forme »)');
+ $('cm').textContent=ms.join(' · ')}
+$('alat').onchange=alist;$('ka').onclick=togA;$('redis').onclick=redis;
+$('rda').onclick=()=>{APPLIED=false;A={};R.forEach(r=>{r.lat=r.lat0;r.lon=r.lon0;r.ed=false;r.cl=false;r.rd=false;r.tr=false});$('cm').textContent='';calc();draw()};
+function snapTo(k){if(sel<0)return;const l=LM[k],r=R[sel];r.lat=l.lat;r.lon=l.lon;r.ed=true;setA(sel,LT[l.ty]||l.ty);map.closePopup();calc();draw()}
+let OVs={recv:0,fail:0,nb:0};
+function showLM(){lmg.clearLayers();
+ LM.forEach((l,k)=>L.marker([l.lat,l.lon],{icon:L.divIcon({className:'',html:`<div class="lmk${l.ty=='milestone'?' ms':''}"></div>`,iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:500})
+  .bindTooltip((LT[l.ty]||l.ty)+(l.lb?' '+l.lb:'')).bindPopup(`<b>${LT[l.ty]||l.ty}</b> ${l.lb} (${l.id})<br><button onclick="snapTo(${k})">Placer la photo sélectionnée ici (ancre)</button>`).addTo(lmg));
+ const c={};LM.forEach(l=>{const t=LT[l.ty]||l.ty;c[t]=(c[t]||0)+1});
+ $('ol').innerHTML=`<div>Reçus ${OVs.recv} · retenus près de la trace ${LM.length} · requêtes en échec ${OVs.fail}/${OVs.nb}${OVs.fail?' ⚠ relancez':''}</div><div>${Object.entries(c).map(([k,v])=>k+' '+v).join(' · ')}</div>`
+  +LM.map((l,k)=>`<div class="z" data-i="${l.bi}" data-k="${k}"><i class="d" style="background:#fff;border:2px solid #111"></i><span><b>${LT[l.ty]||l.ty}</b> ${l.lb} près de ${R[l.bi].f} (${l.bd.toFixed(0)} m)</span></div>`).join('');
+ $('ol').querySelectorAll('.z').forEach(e=>e.onclick=()=>{pick(+e.dataset.i,true);lmg.getLayers()[+e.dataset.k].openPopup()});chart()}
+const OV=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+async function ovq(q){let err;for(const u of OV){try{const r=await fetch(u,{method:'POST',body:'data='+encodeURIComponent(q)});if(r.ok)return(await r.json()).elements}catch(e){err=e}}throw err||new Error('serveurs indisponibles')}
+$('ov').onclick=async()=>{if(!R.length){$('ol').textContent='Chargez d’abord le CSV.';return}
+ const ps=[];let last=null;R.forEach(r=>{if(!last||dist(r,last)[0]>150){ps.push(r.lat0.toFixed(5)+','+r.lon0.toFixed(5));last=r}});
+ const seen={},els=[],S=60,nb=Math.ceil(ps.length/S);let fail=0;
+ for(let c=0;c<ps.length;c+=S){$('ol').textContent='Requête Overpass '+(c/S+1)+'/'+nb+'…';
+  const ar=`(around:25,${ps.slice(c,c+S+1).join(',')})`,
+   q=`[out:json][timeout:60];(node${ar}["highway"~"^(crossing|stop|give_way|traffic_signals|mini_roundabout|milestone)$"];way${ar}["bridge"="yes"]["highway"];${$('mk').checked?`nwr${ar}["traffic_calming"="island"];way${ar}["area:highway"="traffic_island"];way${ar}["barrier"="kerb"];nwr${ar}`:''}${$('pl').checked?`node${ar}["power"="pole"];`:''});out center tags;`;
+  try{(await ovq(q)).forEach(e=>{if(!seen[e.type+e.id]){seen[e.type+e.id]=1;els.push(e)}})}catch(e){fail++}}
+ LM=els.map(e=>{const t=e.tags||{},lat=e.lat??e.center.lat,lon=e.lon??e.center.lon,ty=lty(t);let bi=0,bd=1e9;
+   R.forEach((r,i)=>{const d=dist({lat:r.lat0,lon:r.lon0},{lat,lon})[0];if(d<bd){bd=d;bi=i}});return{id:e.type[0]+e.id,lat,lon,ty,bi,bd,lb:t.ref||t.distance||t.name||''}}).filter(l=>l.bd<=(l.id[0]=='n'?35:60)).sort((a,b)=>a.bi-b.bi);
+ OVs={recv:els.length,fail,nb};showLM()};
+
+function heads(){const k=R.map((r,i)=>i).filter(i=>R[i].keep),H={};let last=null;
+ k.forEach((i,n)=>{let v=null;for(let m=n+1;m<Math.min(k.length,n+11);m++){const[d,b]=dist(R[k[m]],R[i]);if(d>=3){v=(b+360)%360;break}}
+  if(v==null)v=last;else last=v;H[i]=v});
+ for(let n=k.length-2;n>=0;n--)if(H[k[n]]==null)H[k[n]]=H[k[n+1]];return H}
+$('expe').onclick=()=>{if(!R.length)return;const H=heads(),off=+$('hoff').value||0,f=(v,a,b)=>[Math.abs(v).toFixed(7),v<0?b:a];
+ const rows=R.map((r,i)=>{if(!r.keep)return null;const la=f(r.lat,'N','S'),lo=f(r.lon,'E','W'),c=H[i]==null?['','']:[(((H[i]+off)%360+360)%360).toFixed(1),'T'];
+  return[r.f,la[0],la[1],lo[0],lo[1],c[0],c[1]].join(',')}).filter(Boolean);
+ dl('corrections_exiftool.csv','SourceFile,GPSLatitude,GPSLatitudeRef,GPSLongitude,GPSLongitudeRef,GPSImgDirection,GPSImgDirectionRef\n'+rows.join('\n')+'\n')};
+
+// ---------- Import : lecture EXIF directe des JPG ----------
+function exifOf(buf){const v=new DataView(buf);if(v.byteLength<4||v.getUint16(0)!=0xFFD8)return null;let o=2;
+ while(o+4<v.byteLength){const m=v.getUint16(o);if(m<0xFF00||m==0xFFDA)break;const n=v.getUint16(o+2);
+  if(m==0xFFE1&&v.getUint32(o+4)==0x45786966)return tiff(v,o+10);o+=2+n}return null}
+function tiff(v,b){const le=v.getUint16(b)==0x4949,u16=p=>v.getUint16(p,le),u32=p=>v.getUint32(p,le),T={1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8};
+ const ifd=off=>{const r={},n=u16(b+off);for(let i=0;i<n;i++){const e=b+off+2+i*12,tag=u16(e),ty=u16(e+2),c=u32(e+4),sz=(T[ty]||1)*c,p=sz>4?b+u32(e+8):e+8;
+  if(p+sz>v.byteLength||((ty==1||ty==7)&&c>16&&tag!=0x1C))continue;let a=[];
+  if(ty==2){let s='';for(let k=0;k<c-1;k++)s+=String.fromCharCode(v.getUint8(p+k));a=s}
+  else for(let k=0;k<c;k++)a.push(ty==5||ty==10?(u32(p+k*8+4)?u32(p+k*8)/u32(p+k*8+4):0):ty==3?u16(p+k*2):ty==4||ty==9?u32(p+k*4):v.getUint8(p+k));
+  r[tag]=a}return r};
+ const i0=ifd(u32(b+4));return{i0,ex:i0[0x8769]?ifd(i0[0x8769][0]):{},gp:i0[0x8825]?ifd(i0[0x8825][0]):{}}}
+async function readExif(f){for(const n of[131072,1048576]){const x=exifOf(await f.slice(0,n).arrayBuffer());if(x||f.size<=n)return x}return null}
+const pad=n=>String(n).padStart(2,'0');
+function parseCal(a){if(!a||a.length<10)return null;let s='';for(let k=8;k<a.length;k++)s+=String.fromCharCode(a[k]);return parseCalStr(s)}
+function parseCalStr(s){try{
+ if(s.slice(0,13)=='reposition/1 '){const j=JSON.parse(s.slice(13));return j&&j.orig?j:null}
+ if(s.slice(0,9)=='calage/1 '){const j=JSON.parse(s.slice(9));if(!(j&&j.o))return null;const M={ancre:'anchor',redistribution:'redistribution',manuel:'manual'};
+  return{cs:j.c,ts:j.t,tool:j.tool,state:j.st=='reverted'?'reverted':'adjusted',orig:j.o,dist_m:j.d,method:M[j.m]||j.m,anchor:j.a?{theme:themeOf(j.a.t)}:undefined,prev:j.p,next:j.n,hist:(j.h||[]).map(x=>({cs:x.c,ts:x.t,pos:x.p}))}}
+ return null}catch(e){return null}}
+const THEME={'passage piéton':'crossing','ligne de stop':'stop_line','cédez-le-passage':'give_way','pont':'bridge','intersection':'junction','poteau':'pole','borne':'milestone','îlot':'traffic_island','bordure séparatrice':'median_kerb','flèche de rabattement':'merge_arrow','tracé hachuré':'hatched_marking','dépassement':'overtaking','autre':'other','manuel':'manual'};
+const OSMTAG={crossing:'osm|highway=crossing',stop_line:'osm|road_marking=stop_line',give_way:'osm|highway=give_way',bridge:'osm|bridge=yes',junction:'osm|junction=yes',pole:'osm|man_made=utility_pole',milestone:'osm|highway=milestone',traffic_island:'osm|traffic_calming=island',median_kerb:'osm|barrier=kerb',merge_arrow:'osm|road_marking=arrow',hatched_marking:'osm|road_marking=hatched',overtaking:'reposition|exception=overtaking',other:'reposition|theme=other',manual:'reposition|theme=manual'};
+const themeOf=t=>THEME[t]||String(t||'other').toLowerCase().replace(/[^a-z0-9]+/g,'_');
+function rowOf(f,x){if(!x)return null;const{i0,ex,gp:g}=x,dm=a=>a[0]+a[1]/60+a[2]/3600,mk=((i0[0x10F]||'')+' '+(i0[0x110]||'')).trim();
+ if(!g[2]||!g[4])return{nogps:true};
+ const dto=ex[0x9003]||'',gd=g[0x1D]&&g[7]?g[0x1D]+' '+pad(Math.floor(g[7][0]))+':'+pad(Math.floor(g[7][1]))+':'+pad(Math.floor(g[7][2])):dto;
+ return{FileName:f.name,DateTimeOriginal:dto||gd,GPSDateTime:gd,GPSLatitude:dm(g[2])*(g[1]=='S'?-1:1),GPSLongitude:dm(g[4])*(g[3]=='W'?-1:1),
+  GPSAltitude:g[6]?g[6][0]*(g[5]&&g[5][0]==1?-1:1):0,cal:parseCal(g[0x1C]),mk,w:ex[0xA002]?ex[0xA002][0]:0,h:ex[0xA003]?ex[0xA003][0]:0}}
+function reset(){if(pl)play();sel=-1;LM=[];lmg.clearLayers();ag.clearLayers();if(mk){map.removeLayer(mk);mk=null}
+ if(pv){pv.destroy();pv=null}$('pano').textContent='Cliquez un point de la carte pour afficher la photo en 360°.';
+ $('ol').textContent='';$('cm').textContent='';$('info').textContent='Cliquez un point (← → pour naviguer, x pour garder/exclure).';for(const k in UC)delete UC[k];for(const k in PXI)delete PXI[k]}
+$('imgs').onchange=e=>{for(const k in FH)delete FH[k];SRC={t:'dossier',n:((e.target.files[0]||{}).webkitRelativePath||'').split('/')[0]||'(dossier)'};importFiles([...e.target.files].filter(f=>/\.jpe?g$/i.test(f.name)))};
+async function importFiles(fs){
+ if(!fs.length){$('imp').textContent='Aucun JPG dans ce dossier.';return}
+ if(R.length&&Object.keys(A).length&&!confirm('Des ancres sont déjà posées. Remplacer la séquence par ce dossier ?'))return;
+ reset();imgs={};fs.forEach(f=>imgs[f.name]=f);const rows=[];let ng=0,bad=0,mk='',w=0,h=0;
+ for(let i=0;i<fs.length;i+=40){$('imp').textContent='Lecture des métadonnées EXIF… '+i+' / '+fs.length;
+  (await Promise.all(fs.slice(i,i+40).map(async f=>{try{return rowOf(f,await readExif(f))}catch(er){return null}}))).forEach(r=>{
+   if(!r)bad++;else if(r.nogps)ng++;else{rows.push(r);mk=mk||r.mk;w=w||r.w;h=h||r.h}})}
+ if(!rows.length){$('imp').textContent=fs.length+' JPG lus : aucune position GPS dans les métadonnées'+(bad?' ('+bad+' sans EXIF lisible)':'')+'.';return}
+ META={mk,w,h,tot:fs.length,ng,bad};load(rows);trySession();
+ const a=R[0].g,z=R[R.length-1].g,s=z-a,km=R.reduce((t,r)=>t+r.d,0)/1000,iso=t=>new Date(t*1000).toISOString().replace('T',' ').slice(0,19);
+ $('imp').innerHTML=`<b>${R.length}</b> photos positionnées sur ${fs.length} JPG${ng?` · <b>${ng} sans position GPS</b> (ignorées)`:''}${bad?` · ${bad} sans EXIF lisible`:''}<br>`
+  +`${iso(a)} → ${iso(z)} UTC (${Math.floor(s/3600)} h ${pad(Math.floor(s%3600/60))} min) · ${km.toFixed(1)} km · une photo toutes les ${iv} s`
+  +(mk||w?`<br>${mk}${w?` ${w}×${h}${Math.abs(w/h-2)<.05?' (360° équirectangulaire)':''}`:''}`:'')};
+
+// ---------- Mode examen : visionneuse 360° en bulle à côté du marqueur + cône de vue ----------
+const CR=110;
+const bub=document.createElement('div');bub.id='bubble';
+bub.innerHTML='<div id="bin"><div id="bbar"><button id="bb1">◀</button><button id="bb2">▶</button><button id="bb3">▶</button><span id="bcap"></span><label style="margin-left:auto">cap <input id="bho" type="number" step="5" value="0" title="Décalage entre l’avant de la caméra et le sens de marche (°)"></label></div></div>';
+map.getContainer().appendChild(bub);L.DomEvent.disableClickPropagation(bub);L.DomEvent.disableScrollPropagation(bub);
+const pHome=$('pano').parentNode,pNext=$('pano').nextSibling,vg=L.layerGroup().addTo(map);let vst='';
+$('bb1').onclick=()=>{if(sel>0)pick(sel-1,false)};$('bb3').onclick=()=>{if(sel<R.length-1)pick(sel+1,false)};$('bb2').onclick=play;$('bb2').textContent='▶';
+$('bho').oninput=()=>{$('hoff').value=$('bho').value};$('hoff').oninput=()=>{$('bho').value=$('hoff').value};
+function place(){if(!document.body.classList.contains('ex')||sel<0)return;
+ const r=R[sel],P=map.latLngToContainerPoint([r.lat,r.lon]),S=map.getSize(),hh=bub.offsetHeight,g=CR+30;let w=bub.offsetWidth;
+ bub.style.visibility=(P.x>=0&&P.y>=0&&P.x<=S.x&&P.y<=S.y)?'visible':'hidden';
+ const sr=S.x-4-g-P.x,sl=P.x-g-4,side=sr>=w?'r':sl>=w?'l':(sr>=sl?'r':'l'),room=side=='r'?sr:sl;
+ if(room<w){if(room>=200){$('bin').style.width=room+'px';w=bub.offsetWidth}else if(!place.busy){place.busy=1;mfocus();place.busy=0;return}}
+ const x=Math.max(4,Math.min(S.x-w-4,side=='r'?P.x+g:P.x-g-w)),y=Math.max(4,Math.min(S.y-hh-4,P.y-18-hh/2));
+ bub.style.left=x+'px';bub.style.top=y+'px';bub.className=side;bub.style.setProperty('--ay',Math.max(16,Math.min(hh-16,P.y-18-y))+'px')}
+function hdg(i){for(let m=i+1;m<Math.min(R.length,i+12);m++){const[d,b]=dist(R[m],R[i]);if(d>=3)return(b+360)%360}
+ for(let m=i-1;m>=Math.max(0,i-12);m--){const[d,b]=dist(R[i],R[m]);if(d>=3)return(b+360)%360}return 0}
+function cone(){if(!document.body.classList.contains('ex')||sel<0||!pv){if(vst){vg.clearLayers();vst=''}return}
+ let yaw,hf;try{yaw=pv.getYaw();hf=pv.getHfov()}catch(e){return}
+ const r=R[sel],z=map.getZoom(),k=[sel,yaw.toFixed(1),hf.toFixed(1),z,$('hoff').value,r.lat,r.lon].join();if(k==vst)return;vst=k;
+ const co=Math.cos(r.lat*Math.PI/180),rad=CR*156543.03*co/Math.pow(2,z),cam=PXI[r.f]&&PXI[r.f].hd!=null?PXI[r.f].hd:hdg(sel)+(+$('hoff').value||0),az=cam+yaw,
+  pt=(a,d)=>{const t=a*Math.PI/180;return[r.lat+Math.cos(t)*d/110540,r.lon+Math.sin(t)*d/(111320*co)]};
+ const arc=[[r.lat,r.lon]];for(let i=0;i<=16;i++)arc.push(pt(az-hf/2+hf*i/16,rad));
+ vg.clearLayers();L.polygon(arc,{color:'#0ea5e9',weight:2,fillColor:'#0ea5e9',fillOpacity:.25,interactive:false}).addTo(vg);
+ L.polyline([[r.lat,r.lon],pt(cam,rad*.8)],{color:'#111',weight:2,dashArray:'4 4',interactive:false}).addTo(vg)}
+setInterval(cone,120);map.on('move zoom resize',place);
+new ResizeObserver(()=>{if(pv)pv.resize();place()}).observe($('bin'));
+$('ex').onclick=()=>{const on=document.body.classList.toggle('ex');$('ex').textContent=on?'Quitter le mode examen':'Mode examen';
+ if(on){bub.style.display='block';$('bin').insertBefore($('pano'),$('bbar'));$('fl').checked=true;$('bho').value=$('hoff').value;
+  if(sel>=0)mfocus(Math.max(map.getZoom(),19))}
+ else{bub.style.display='none';pHome.insertBefore($('pano'),pNext);vg.clearLayers();vst=''}
+ if(pv)pv.resize();map.invalidateSize();place()};
+
+// ---------- Écriture EXIF directe (File System Access API) ----------
+function locate(buf){const v=new DataView(buf);if(v.byteLength<4||v.getUint16(0)!=0xFFD8)return null;let o=2;
+ while(o+4<v.byteLength){const m=v.getUint16(o);if(m<0xFF00||m==0xFFDA)break;const n=v.getUint16(o+2);
+  if(m==0xFFE1&&v.getUint32(o+4)==0x45786966)return o+2+n<=v.byteLength?{o,end:o+2+n}:null;o+=2+n}return null}
+function patchSeg(seg,gps){
+ const v=new DataView(seg.buffer,seg.byteOffset,seg.byteLength),b=10,le=v.getUint16(b)==0x4949,u16=p=>v.getUint16(p,le),u32=p=>v.getUint32(p,le),T={1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8};
+ const i0=b+u32(b+4),n0=u16(i0);let pe=-1;for(let i=0;i<n0;i++){const e=i0+2+i*12;if(u16(e)==0x8825){pe=e;break}}
+ if(pe<0)throw new Error('pas d’IFD GPS dans cette photo');
+ const g0=b+u32(pe+8),ng=u16(g0),ents={};
+ for(let i=0;i<ng;i++){const e=g0+2+i*12,tag=u16(e),ty=u16(e+2),c=u32(e+4),sz=(T[ty]||1)*c,p=sz>4?b+u32(e+8):e+8;
+  if(p+sz>seg.length)throw new Error('IFD GPS hors du segment EXIF');ents[tag]={ty,c,d:seg.slice(p,p+sz)}}
+ const enc=a=>{const o=new Uint8Array(a.length*8),dv=new DataView(o.buffer);a.forEach(([n,d],k)=>{dv.setUint32(k*8,n,le);dv.setUint32(k*8+4,d,le)});return o},
+  asc=s=>Uint8Array.from([s.charCodeAt(0),0]),
+  dms=x=>{x=Math.abs(x);const d=Math.floor(x),m=Math.floor((x-d)*60),s=((x-d)*60-m)*60;return[[d,1],[m,1],[Math.round(s*1e5),1e5]]},
+  put=(t,ty,c,d)=>{ents[t]={ty,c,d}};
+ put(1,2,2,asc(gps.lat<0?'S':'N'));put(2,5,3,enc(dms(gps.lat)));put(3,2,2,asc(gps.lon<0?'W':'E'));put(4,5,3,enc(dms(gps.lon)));
+ if(gps.dir!=null){put(0x10,2,2,asc('T'));put(0x11,5,1,enc([[Math.round(gps.dir*100),100]]))}
+ const tags=Object.keys(ents).map(Number).sort((a,c)=>a-c),pad=(seg.length-b)%2,start=seg.length+pad,tbl=2+tags.length*12+4;
+ let dl=0;tags.forEach(t=>{const n=ents[t].d.length;if(n>4)dl+=n+n%2});
+ const out=new Uint8Array(start+tbl+dl),ov=new DataView(out.buffer);out.set(seg);ov.setUint16(start,tags.length,le);let dp=start+tbl;
+ tags.forEach((t,i)=>{const e=start+2+i*12,x=ents[t];ov.setUint16(e,t,le);ov.setUint16(e+2,x.ty,le);ov.setUint32(e+4,x.c,le);
+  if(x.d.length<=4)out.set(x.d,e+8);else{ov.setUint32(e+8,dp-b,le);out.set(x.d,dp);dp+=x.d.length+x.d.length%2}});
+ ov.setUint32(start+2+tags.length*12,0,le);ov.setUint32(pe+8,start-b,le);
+ if(out.length-2>65535)throw new Error('segment EXIF trop volumineux');ov.setUint16(2,out.length-2);return out}
+async function patchJpeg(file,gps){for(const n of[262144,1048576]){const buf=await file.slice(0,Math.min(n,file.size)).arrayBuffer(),L=locate(buf);
+  if(L){const seg=patchSeg(new Uint8Array(buf.slice(L.o,L.end)),gps);
+   return{blob:new Blob([buf.slice(0,L.o),seg,file.slice(L.end)],{type:'image/jpeg'}),delta:seg.length-(L.end-L.o)}}
+  if(file.size<=n)break}
+ throw new Error('bloc EXIF introuvable')}
+async function verifyJpeg(file,gps,size){let x=null;for(const n of[262144,1048576]){x=exifOf(await file.slice(0,Math.min(n,file.size)).arrayBuffer());if(x||file.size<=n)break}
+ if(!x||file.size!=size)return false;const g=x.gp,dm=a=>a[0]+a[1]/60+a[2]/3600;
+ return Math.abs(dm(g[2])*(g[1]=='S'?-1:1)-gps.lat)<2e-7&&Math.abs(dm(g[4])*(g[3]=='W'?-1:1)-gps.lon)<2e-7&&(gps.dir==null||(g[0x11]&&Math.abs(g[0x11][0]-gps.dir)<.011))}
+async function fileHandleOf(dir,name){const rp=(imgs[name]&&imgs[name].webkitRelativePath)||name,parts=rp.split('/');if(parts.length>1)parts.shift();
+ let d=dir;for(const s of parts.slice(0,-1))d=await d.getDirectoryHandle(s);return d.getFileHandle(parts[parts.length-1])}
+let wstop=false;
+async function writeSel(only){
+ if(!window.showDirectoryPicker){$('wst').textContent='Ce navigateur ne permet pas l’écriture directe (utilisez Chrome ou Edge) : passez par le CSV ExifTool.';return}
+ if(!R.length)return;let dir;try{dir=await showDirectoryPicker({mode:'readwrite'})}catch(e){return}
+ const over=$('wm').value=='over';
+ if(over&&!confirm('Les JPG originaux de ce dossier seront modifiés (bloc GPS de l’EXIF). Continuer ?'))return;
+ const out=over?dir:await dir.getDirectoryHandle('a_televerser',{create:true}),H=heads(),off=+$('hoff').value||0,wd=$('wdir').checked,
+  idx=only!=null?[only]:R.map((r,i)=>i).filter(i=>R[i].keep);let ok=0,ko=0,miss=0;const er=[];wstop=false;
+ for(let n=0;n<idx.length&&!wstop;n++){const i=idx[n],r=R[i];
+  $('wst').textContent='Écriture '+n+' / '+idx.length+' · '+ok+' vérifiées · '+ko+' en erreur · '+miss+' introuvables';
+  let fh;try{fh=await fileHandleOf(dir,r.f)}catch(e){miss++;continue}
+  try{const file=await fh.getFile(),gps={lat:r.lat,lon:r.lon,dir:wd&&H[i]!=null?(((H[i]+off)%360)+360)%360:null},{blob,delta}=await patchJpeg(file,gps),size=file.size+delta,
+    oh=await out.getFileHandle(r.f,{create:true}),w=await oh.createWritable();await w.write(blob);await w.close();
+   if(await verifyJpeg(await oh.getFile(),gps,size))ok++;else{ko++;er.push(r.f+' : relecture différente')}}
+  catch(e){ko++;er.push(r.f+' : '+e.message)}}
+ $('wst').innerHTML=(wstop?'Arrêté. ':'Terminé. ')+'<b>'+ok+'</b> / '+idx.length+' photos écrites et relues avec succès'+(ko?' · <b>'+ko+' en erreur</b>':'')+(miss?' · '+miss+' introuvables dans ce dossier (est-ce le bon ?)':'')
+  +(over?'':' → dossier « a_televerser »')+(er.length?'<br>'+er.slice(0,3).join('<br>'):'')}
+$('wall').onclick=()=>writeSel();$('wone').onclick=()=>{if(sel<0)$('wst').textContent='Sélectionnez d’abord une photo.';else writeSel(sel)};$('wx').onclick=()=>{wstop=true};
+if(!window.showDirectoryPicker){$('wall').disabled=$('wone').disabled=true;$('wst').textContent='Écriture directe indisponible dans ce navigateur (Chrome ou Edge requis) : utilisez le CSV ExifTool.'}
+
+// ---------- Écriture directe des positions dans les JPG (File System Access API) ----------
+const FH={};let DIR=null;
+async function collect(d,out){for await(const[n,x]of d.entries()){if(x.kind=='file'){if(/\.jpe?g$/i.test(n)&&!out[n])out[n]=x}else if(n!='calees')await collect(x,out)}return out}
+async function openDir(){try{DIR=await showDirectoryPicker({mode:'readwrite'})}catch(e){return}
+ SRC={t:'dossier',n:DIR.name};
+ $('imp').textContent='Parcours du dossier…';const hs=await collect(DIR,{});for(const k in FH)delete FH[k];Object.assign(FH,hs);
+ await importFiles(await Promise.all(Object.values(hs).map(x=>x.getFile())));
+ try{await DIR.getDirectoryHandle('calees');$('imp').insertAdjacentHTML('beforeend','<br>ℹ Un sous-dossier « calees » existe : il contient les photos écrites avec les positions corrigées (ouvrez-le pour les voir).')}catch(e){}}
+$('imgs').addEventListener('click',e=>{if(window.showDirectoryPicker){e.preventDefault();openDir()}});
+// Réécrit le bloc GPS de l'EXIF en l'ajoutant à la fin du segment APP1 (le reste du fichier n'est pas touché).
+async function patchExif(file,u){
+ const buf=await file.slice(0,262144).arrayBuffer(),b=new Uint8Array(buf),v=new DataView(buf);
+ if(v.getUint16(0)!=0xFFD8)throw new Error('pas un JPEG');
+ let o=2,seg=-1;
+ while(o+4<v.byteLength){const m=v.getUint16(o);if(m<0xFF00||m==0xFFDA)break;const n=v.getUint16(o+2);
+  if(m==0xFFE1&&v.getUint32(o+4)==0x45786966&&v.getUint16(o+8)==0){seg=o;break}o+=2+n}
+ if(seg<0)throw new Error('pas de bloc EXIF');
+ const len=v.getUint16(seg+2),end=seg+2+len,t=seg+10,le=v.getUint16(t)==0x4949;
+ if(end>buf.byteLength)throw new Error('bloc EXIF trop grand');
+ const g16=p=>v.getUint16(t+p,le),g32=p=>v.getUint32(t+p,le),i0=g32(4),n0=g16(i0);let ge=-1;
+ for(let i=0;i<n0;i++){const e=i0+2+i*12;if(g16(e)==0x8825){ge=e;break}}
+ if(ge<0)throw new Error('pas de bloc GPS (utiliser ExifTool)');
+ const go=g32(ge+8),gn=g16(go),TS={1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8},ent=new Map();
+ for(let i=0;i<gn;i++){const e=go+2+i*12,ty=g16(e+2),c=g32(e+4),sz=(TS[ty]||1)*c,s=sz<=4?t+e+8:t+g32(e+8);
+  if(s+sz>end)throw new Error('bloc GPS incohérent');ent.set(g16(e),{ty,c,raw:b.slice(s,s+sz)})}
+ const asc=s=>new Uint8Array([s.charCodeAt(0),0]),rat=a=>{const r=new Uint8Array(a.length*8),d=new DataView(r.buffer);a.forEach(([n,m],k)=>{d.setUint32(k*8,n,le);d.setUint32(k*8+4,m,le)});return r},
+  dms=x=>{const q=Math.round(Math.abs(x)*3600e6),sec=q%60e6,tm=Math.floor(q/60e6);return rat([[Math.floor(tm/60),1],[tm%60,1],[sec,1e6]])};
+ ent.set(1,{ty:2,c:2,raw:asc(u.lat<0?'S':'N')});ent.set(2,{ty:5,c:3,raw:dms(u.lat)});
+ ent.set(3,{ty:2,c:2,raw:asc(u.lon<0?'W':'E')});ent.set(4,{ty:5,c:3,raw:dms(u.lon)});
+ if(u.dir!=null){ent.set(0x10,{ty:2,c:2,raw:asc('T')});ent.set(0x11,{ty:5,c:1,raw:rat([[Math.round(u.dir*1000)%360000,1000]])})}
+ if(u.cal){const enc=s=>{const x=new Uint8Array(8+s.length);x.set([65,83,67,73,73,0,0,0]);for(let k=0;k<s.length;k++)x[8+k]=s.charCodeAt(k)&127;return x},m1=enc(u.cal),m2=enc('MANUAL');ent.set(0x1C,{ty:7,c:m1.length,raw:m1});ent.set(0x1B,{ty:7,c:m2.length,raw:m2})}
+ const list=[...ent.entries()].sort((x,y)=>x[0]-y[0]),tl=end-t,pad=tl%2,base=tl+pad,il=2+12*list.length+4,ifd=new Uint8Array(il),dv=new DataView(ifd.buffer),ex=[];let xl=0;
+ dv.setUint16(0,list.length,le);
+ list.forEach(([tag,e],i)=>{const p=2+i*12;dv.setUint16(p,tag,le);dv.setUint16(p+2,e.ty,le);dv.setUint32(p+4,e.c,le);
+  if(e.raw.length<=4)ifd.set(e.raw,p+8);else{dv.setUint32(p+8,base+il+xl,le);ex.push(e.raw);xl+=e.raw.length;if(e.raw.length%2){ex.push(new Uint8Array(1));xl++}}});
+ const add=pad+il+xl;if(len+add>65535)throw new Error('bloc EXIF plein (utiliser ExifTool)');
+ v.setUint32(t+ge+8,base,le);v.setUint16(seg+2,len+add);
+ return[b.slice(0,end),new Uint8Array(pad),ifd,...ex,file.slice(end)]}
+let LASTCS=null;
+const ascii=s=>s.replace(/[^\x00-\x7f]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
+function mkCal(r,i,cs,t,ak){const prev=r.cal,o=prev&&prev.orig?prev.orig:[+r.lat0.toFixed(7),+r.lon0.toFixed(7)],
+ d=dist({lat:r.lat,lon:r.lon},{lat:o[0],lon:o[1]})[0];
+ if(!r.revert&&!A[i]&&dist({lat:r.lat,lon:r.lon},{lat:r.lat0,lon:r.lon0})[0]<.05)return null;
+ const j={cs,ts:t,tool:'seq360-adjust/1',state:r.revert?'reverted':'adjusted',orig:o,dist_m:+d.toFixed(2),method:A[i]?'anchor':r.rd?'redistribution':'manual'};
+ if(A[i]){const th=themeOf(A[i].type);j.anchor={theme:th,tag:OSMTAG[th]||'reposition|theme=other'}}else{let pa=null,na=null;for(const x of ak){if(x.i<i)pa=x;else if(x.i>i&&!na)na=x}
+  if(pa)j.prev=[themeOf(pa.type),R[pa.i].f];if(na)j.next=[themeOf(na.type),R[na.i].f]}
+ if(prev)j.hist=[...(prev.hist||[]),{cs:prev.cs,ts:prev.ts,pos:[+r.lat0.toFixed(7),+r.lon0.toFixed(7)]}].slice(-3);
+ let s='reposition/1 '+ascii(JSON.stringify(j));if(s.length>1500){delete j.hist;s='reposition/1 '+ascii(JSON.stringify(j))}
+ return{s,j}}
+$('rvt').onclick=()=>{let n=0;R.forEach(r=>{if(r.cal&&r.cal.orig){r.lat=r.cal.orig[0];r.lon=r.cal.orig[1];r.revert=true;r.ed=true;r.rd=true;n++}});
+ if(!n){$('wp').textContent='Aucune photo ne porte d’historique de calage.';return}calc();draw();$('wp').textContent=n+' photo(s) replacée(s) à leur position d’origine (écrire pour l’enregistrer dans les fichiers).'};
+$('csx').onclick=()=>{if(!LASTCS){$('wp').textContent='Aucun changeset écrit pendant cette session.';return}dl('changeset_'+LASTCS.id+'.json',JSON.stringify(LASTCS,null,1))};
+async function writeAll(){
+ if(!R.length)return;
+ if(!window.showDirectoryPicker){$('wp').textContent='Ce navigateur ne permet pas l’écriture directe : utilisez Chrome ou Edge, ou le CSV ExifTool.';return}
+ const ow=$('wd').value=='o';
+ if(ow&&!confirm('Les photos originales seront modifiées sur place, sans copie de sauvegarde. Continuer ?'))return;
+ let dir=DIR;
+ if(!dir||!Object.keys(FH).length){try{dir=DIR=await showDirectoryPicker({mode:'readwrite'})}catch(e){return}for(const k in FH)delete FH[k];Object.assign(FH,await collect(dir,{}))}
+ else if(dir.requestPermission&&await dir.requestPermission({mode:'readwrite'})!='granted'){$('wp').textContent='Autorisation d’écriture refusée.';return}
+ const H=heads(),off=+$('hoff').value||0,dest=ow?null:await dir.getDirectoryHandle('calees',{create:true}),
+  todo=R.map((r,i)=>({r,i})).filter(x=>x.r.keep&&FH[x.r.f]),miss=R.filter(r=>r.keep&&!FH[r.f]).length,fail=[],wrote=[],LOG=[],ak=Object.values(A).sort((a,b)=>a.i-b.i),cs='cs-'+new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)+'-'+Math.random().toString(36).slice(2,6),now=new Date().toISOString().slice(0,19)+'Z';let ok=0;
+ for(let n=0;n<todo.length;n++){const{r,i}=todo[n];if(n%20==0){$('wp').textContent='Écriture… '+n+' / '+todo.length;await new Promise(z=>setTimeout(z))}
+  try{const cal=$('tr').checked?mkCal(r,i,cs,now,ak):null,f=await FH[r.f].getFile(),parts=await patchExif(f,{cal:cal&&cal.s,lat:r.lat,lon:r.lon,dir:$('wh').checked&&H[i]!=null?(((H[i]+off)%360)+360)%360:null});
+   const fh=ow?FH[r.f]:await dest.getFileHandle(r.f,{create:true}),w=await fh.createWritable();await w.write(new Blob(parts));await w.close();
+   if(ow){imgs[r.f]=await FH[r.f].getFile();delete UC[r.f];wrote.push(r);if(cal){r.cal=cal.j;r.revert=false}}
+   if(cal)LOG.push({f:r.f,from:[+r.lat0.toFixed(7),+r.lon0.toFixed(7)],to:[+r.lat.toFixed(7),+r.lon.toFixed(7)],orig:cal.j.orig,state:cal.j.state,method:cal.j.method,anchor:cal.j.anchor||null,prev:cal.j.prev||null,next:cal.j.next||null});ok++}
+  catch(e){fail.push(r.f+' : '+(e.message||e))}}
+ LASTCS=LOG.length?{id:cs,at:now,tool:'seq360-adjust/1',source:SRC,destination:ow?'originaux':'calees',photos:LOG.length,entries:LOG}:null;
+ if(ow&&wrote.length){wrote.forEach(r=>{r.lat0=r.lat;r.lon0=r.lon;r.rd=false;r.ed=false});if(!fail.length){A={};APPLIED=false}calc();draw()}
+ $('wp').innerHTML=`<b>${ok}</b> photos écrites${ow?'':' dans le sous-dossier « calees »'}${miss?` · ${miss} gardées mais introuvables dans le dossier`:''}${fail.length?` · <b>${fail.length} échecs</b> : ${fail.slice(0,3).join(' ; ')}`:''}`}
+$('wr').onclick=writeAll;
+
+// ---------- Doublons : clusters de photos trop proches, à arbitrer ----------
+const iso2=t=>new Date(t*1000).toISOString().slice(11,19);
+function detect(){const Rm=+$('crad').value||6,N=Math.max(2,+$('cmin').value||3);CL=[];let i=0;
+ while(i<R.length){let j=i;while(j+1<R.length&&dist(R[j+1],R[i])[0]<=Rm)j++;
+  if(j-i+1>=N){const c={s:i,e:j};c.st=CD[R[i].f+'|'+R[j].f]||'';CL.push(c);i=j+1}else i++}
+ draw()}
+function cinfo(c){let la=0,lo=0,ext=0;for(let i=c.s;i<=c.e;i++){la+=R[i].lat;lo+=R[i].lon}la/=c.e-c.s+1;lo/=c.e-c.s+1;
+ for(let i=c.s;i<=c.e;i++)ext=Math.max(ext,dist(R[i],{lat:la,lon:lo})[0]);
+ let k=0;for(let i=c.s;i<=c.e;i++)if(R[i].keep)k++;return{la,lo,ext,k,n:c.e-c.s+1,dur:R[c.e].g-R[c.s].g}}
+function cmap(){cg.clearLayers();CM={};
+ CL.forEach((c,k)=>{const q=cinfo(c);for(let i=c.s;i<=c.e;i++)CM[i]=k+1;
+  L.circle([q.la,q.lo],{radius:q.ext+3,color:c.st=='done'?'#16a34a':c.st=='auto'?'#1d4ed8':'#f77f00',weight:2,dashArray:'4 3',fillOpacity:.12,interactive:false}).addTo(cg);
+  L.marker([q.la,q.lo],{icon:L.divIcon({className:'',html:`<div class="ccl ${c.st=='done'?'d':c.st=='auto'?'a':''}">⧉ ${q.k}/${q.n}</div>`,iconSize:[44,18],iconAnchor:[22,9]}),zIndexOffset:300})
+   .bindTooltip(`${q.n} photos · ${q.dur} s · ${R[c.s].f}`).on('click',()=>openCl(k)).addTo(cg)});
+ const d=CL.filter(c=>c.st=='done').length,a=CL.filter(c=>c.st=='auto').length;
+ $('ctx').innerHTML=CL.length?`${CL.length} clusters · <b>${d}</b> arbitrés · ${a} auto (à vérifier) · ${CL.length-d-a} à traiter`:'Aucun cluster avec ces réglages.';
+ $('cl').innerHTML=CL.map((c,k)=>{const q=cinfo(c);return`<div class="z" data-k="${k}"><i class="d" style="background:${c.st=='done'?'#16a34a':c.st=='auto'?'#1d4ed8':'#f77f00'}"></i><span><b>⧉ ${q.k}/${q.n}</b> ${R[c.s].f} · ${q.dur} s · ${q.ext.toFixed(1)} m</span></div>`}).join('');
+ $('cl').querySelectorAll('.z').forEach(e=>e.onclick=()=>openCl(+e.dataset.k))}
+const TH={};
+async function thumb(i){const r=R[i],f=imgs[r.f]||null,px=PXI[r.f];if((!f&&!px)||$('cdlg').hidden)return;
+ if(!TH[r.f]){let bm;try{bm=await createImageBitmap(f||await(await fetch(px.thumb)).blob(),{resizeWidth:480,resizeHeight:240,resizeQuality:'low'})}catch(e){bm=await new Promise((ok,ko)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=ko;im.src=px.thumb})}
+  const cv=document.createElement('canvas');cv.width=480;cv.height=240;
+  const g=cv.getContext('2d');g.drawImage(bm,0,0);if(bm.close)bm.close();
+  let d;try{d=g.getImageData(0,0,480,240).data}catch(e){d=null}
+  const W=480,H=240,Y=new Float32Array(W*H);if(d)for(let p=0;p<W*H;p++)Y[p]=.299*d[p*4]+.587*d[p*4+1]+.114*d[p*4+2];
+  let s=0,s2=0,n=0;for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){const p=y*W+x,l=4*Y[p]-Y[p-1]-Y[p+1]-Y[p-W]-Y[p+W];s+=l;s2+=l*l;n++}
+  r.sh=s2/n-(s/n)*(s/n);TH[r.f]=cv}
+ const el=document.querySelector(`.ct[data-i="${i}"] canvas`);if(el)el.getContext('2d').drawImage(TH[r.f],0,0,240,120)}
+async function loadThumbs(idx){let k=0;const w=async()=>{while(k<idx.length){const i=idx[k++];try{await thumb(i)}catch(e){}}};await Promise.all([w(),w(),w()])}
+function openCl(k){if(k<0||k>=CL.length)return;cur=k;const c=CL[k],idx=[];for(let i=c.s;i<=c.e;i++){idx.push(i);R[i].sn=true}
+ $('cdlg').hidden=false;
+ $('cgrid').innerHTML=idx.map(i=>`<div class="ct${R[i].keep?'':' x'}" data-i="${i}"><canvas width="240" height="120"></canvas><div class="lb"><span>${R[i].f} · +${R[i].g-R[c.s].g} s</span><button data-v="${i}" title="Voir en 360°">👁</button></div></div>`).join('');
+ $('cgrid').querySelectorAll('.ct').forEach(e=>e.onclick=ev=>{if(ev.target.dataset.v)return;const i=+e.dataset.i;R[i].keep=!R[i].keep;e.classList.toggle('x',!R[i].keep);cdone('');calc();draw();chead()});
+ $('cgrid').querySelectorAll('button[data-v]').forEach(b=>b.onclick=()=>{closeCl();pick(+b.dataset.v,true)});
+ chead();loadThumbs(idx)}
+function cdone(st){const c=CL[cur];c.st=st;CD[R[c.s].f+'|'+R[c.e].f]=st}
+function chead(){const c=CL[cur],q=cinfo(c);
+ $('chd').innerHTML=`<b>Cluster ${cur+1} / ${CL.length}</b> · ${q.n} photos · ${q.dur} s (${iso2(R[c.s].g)} → ${iso2(R[c.e].g)} UTC) · étendue ${q.ext.toFixed(1)} m · <b style="color:${q.k?'#16a34a':'#d62828'}">${q.k} gardée(s)</b>${q.k?'':' ⚠ aucune photo gardée'}${c.st=='done'?' · ✓ arbitré':c.st=='auto'?' · auto':''}<br>
+ Garder une seule : <button data-r="first">première</button><button data-r="mid">au centre</button><button data-r="last">dernière</button><button data-r="sharp">la plus nette</button> <button data-r="all">tout garder</button>
+ <button class="p" data-r="ok">Valider ✓ et suivant →</button> <button data-r="prev">◀ précédent</button> <button data-r="next">suivant ▶</button> <button data-r="close">Fermer (Échap)</button><br><small>Cliquer une miniature la garde ou l’exclut ; 👁 l’ouvre en 360°. Les photos grisées seront exclues.</small>`;
+ $('chd').querySelectorAll('button[data-r]').forEach(b=>b.onclick=()=>crule(b.dataset.r))}
+async function crule(k){const c=CL[cur];
+ if(k=='close')return closeCl();if(k=='prev')return openCl(cur-1);if(k=='next')return openCl(cur+1);
+ if(k=='ok'){cdone('done');draw();return openCl(cur+1<CL.length?cur+1:cur)}
+ if(k=='all'){for(let i=c.s;i<=c.e;i++)R[i].keep=true;cdone('')}
+ else{let best=c.s;
+  if(k=='last')best=c.e;
+  else if(k=='mid'){const q=cinfo(c);let m=1e9;for(let i=c.s;i<=c.e;i++){const d=dist(R[i],{lat:q.la,lon:q.lo})[0];if(d<m){m=d;best=i}}}
+  else if(k=='sharp'){await loadThumbs(Array.from({length:c.e-c.s+1},(_,j)=>c.s+j));let m=-1;for(let i=c.s;i<=c.e;i++)if((R[i].sh||0)>m){m=R[i].sh||0;best=i}}
+  for(let i=c.s;i<=c.e;i++)R[i].keep=i==best;cdone('done')}
+ document.querySelectorAll('.ct').forEach(e=>e.classList.toggle('x',!R[+e.dataset.i].keep));calc();draw();chead()}
+function closeCl(){$('cdlg').hidden=true;for(const k in TH)delete TH[k];draw()}
+function cKey(e){if(e.key=='Escape')closeCl();else if(e.key=='ArrowRight')openCl(cur+1);else if(e.key=='ArrowLeft')openCl(cur-1)}
+$('cdet').onclick=detect;
+$('cauto').onclick=()=>{const rl=$('crule').value;CL.forEach((c,k)=>{if(c.st)return;let best=c.s;
+  if(rl=='last')best=c.e;else if(rl=='mid'){const q=cinfo(c);let m=1e9;for(let i=c.s;i<=c.e;i++){const d=dist(R[i],{lat:q.la,lon:q.lo})[0];if(d<m){m=d;best=i}}}
+  for(let i=c.s;i<=c.e;i++)R[i].keep=i==best;c.st='auto';CD[R[c.s].f+'|'+R[c.e].f]='auto'});calc();draw()};
+
+// En mode examen, le marqueur est calé à gauche de la carte : la bulle 360° est à droite, assez loin pour laisser tourner tout le cône.
+function mfocus(z){if(sel<0)return;const r=R[sel],S=map.getSize();z=z==null?map.getZoom():z;
+ if(!document.body.classList.contains('ex')){map.setView([r.lat,r.lon],z,{animate:false});return}
+ const g=CR+30,room=S.x-(CR+8)-g-4;let w=bub.offsetWidth;if(w>room&&room>=200){$('bin').style.width=room+'px';w=room}
+ const tx=Math.max(CR+8,Math.min(S.x*.3,S.x-w-g-4)),ty=S.y/2,pr=map.project([r.lat,r.lon],z);
+ map.setView(map.unproject(L.point(pr.x+S.x/2-tx,pr.y+S.y/2-ty),z),z,{animate:false})}
+
+// ---------- Panoramax en ligne : lire une séquence et corriger les positions (PATCH) ----------
+const PXS={base:'',col:''};
+const pxHead=js=>{const h={},t=$('pxtok').value.trim();if(t)h.Authorization='Bearer '+t;if(js)h['Content-Type']='application/json';return h};
+function pxParse(s){s=s||'';const m=s.trim().match(/^https?:\/\/[^\/\s]+/),u=s.match(/collections\/([0-9a-f-]{36})/i)||s.match(/seq=([0-9a-f-]{36})/i)||s.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+ return{base:m?m[0]:'https://panoramax.openstreetmap.fr',id:u?(u[1]||u[0]):null}}
+async function pxTest(){const q=pxParse($('pxurl').value);
+ try{const r=await fetch(q.base+'/api/users/me',{headers:pxHead(false)}),j=await r.json().catch(()=>({}));
+  $('pxs').textContent=r.ok?'Connecté : '+(j.name||j.id||'?')+(j.role?' ('+j.role+')':''):'Refusé : HTTP '+r.status+' (jeton absent, expiré ou invalide)'}
+ catch(e){$('pxs').textContent='Échec réseau ou CORS : '+e.message}}
+async function pxLoad(){const q=pxParse($('pxurl').value);if(!q.id){$('pxs').textContent='URL ou identifiant de séquence non reconnu.';return}
+ $('pxs').textContent='Chargement de la séquence…';
+ try{let url=`${q.base}/api/collections/${q.id}/items?limit=1000`;const fe=[];
+  while(url){const r=await fetch(url,{headers:pxHead(false)});if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();fe.push(...(j.features||[]));
+   $('pxs').textContent='Chargement… '+fe.length+' photos';const n=(j.links||[]).find(l=>l.rel=='next');url=n?n.href:null}
+  if(!fe.length)throw new Error('séquence vide ou inaccessible');
+  if(R.length&&Object.keys(A).length&&!confirm('Des ancres sont déjà posées. Remplacer la séquence chargée ?'))return;
+  reset();imgs={};for(const k in FH)delete FH[k];
+  const rows=fe.map((f,i)=>{const p=f.properties||{},ex=p.exif||{},rk=p['geovisio:rank_in_collection']??i,nm=String(rk).padStart(4,'0')+'_'+f.id.slice(0,8)+'.jpg',
+    ds=new Date(p.datetime).toISOString().slice(0,19).replace(/-/g,':').replace('T',' '),hd=parseFloat(ex['Exif.GPSInfo.GPSImgDirection']),as=f.assets||{};
+   PXI[nm]={id:f.id,col:q.id,sd:(as.sd||as.hd||{}).href,thumb:(as.thumb||as.sd||{}).href,hd:isFinite(hd)?hd:(p['view:azimuth']!=null?p['view:azimuth']:null),vis:p['geovisio:visibility']||'anyone',sem:(p.semantics||[]).filter(k=>/^reposition/.test(k.key))};
+   return{FileName:nm,Rank:rk,DateTimeOriginal:ds,GPSDateTime:ds,GPSLatitude:f.geometry.coordinates[1],GPSLongitude:f.geometry.coordinates[0],GPSAltitude:parseFloat(ex['Exif.GPSInfo.GPSAltitude'])||0,cal:parseCalStr(String(ex['Exif.GPSInfo.GPSAreaInformation']||'').replace(/^(charset=)?"?ASCII"?[\s\0]*/i,'').replace(/^[\s\0]+/,''))}});
+  PXS.base=q.base;PXS.col=q.id;SRC={t:'panoramax',n:q.base.replace(/^https?:\/\//,'')+' · '+q.id.slice(0,8)};META={};load(rows);trySession();
+  $('pxs').innerHTML=`<b>${R.length}</b> photos chargées depuis ${q.base}`;$('imp').textContent='Séquence Panoramax '+q.id.slice(0,8)+'… : '+R.length+' photos.'}
+ catch(e){$('pxs').textContent='Échec du chargement : '+e.message}}
+async function pxPatch(r,b){const x=PXI[r.f],res=await fetch(`${PXS.base}/api/collections/${x.col}/items/${x.id}`,{method:'PATCH',headers:pxHead(true),body:JSON.stringify(b)});
+ if(!res.ok){let m='';try{m=(await res.text()).slice(0,120)}catch(e){}throw new Error('HTTP '+res.status+(res.status==401||res.status==403?' (droits insuffisants ou jeton invalide)':'')+' '+m)}}
+function semOf(j){const t=[['reposition',j.state],['reposition:changeset',j.cs],['reposition:timestamp',j.ts],['reposition:orig',j.orig.join(',')],['reposition:method',j.method]];
+ if(j.anchor)t.push(['reposition:anchor',j.anchor.tag]);return t.map(([key,value])=>({key,value}))}
+function semDiff(old,nw){const k=x=>x.key+'\u0000'+x.value,ns=new Set(nw.map(k)),os=new Set(old.map(k));
+ return[...old.filter(x=>!ns.has(k(x))).map(x=>({key:x.key,value:x.value,action:'delete'})),...nw.filter(x=>!os.has(k(x))).map(x=>({key:x.key,value:x.value,action:'add'}))]}
+async function pxSend(mode){
+ if(!PXS.base){$('pxs').textContent='Chargez d’abord une séquence Panoramax.';return}
+ const H=heads(),off=+$('hoff').value||0,mv=r=>Math.abs(r.lat-r.lat0)+Math.abs(r.lon-r.lon0)>1e-7,job=[],tg=$('pxt').checked&&mode!='rst',now=new Date().toISOString().slice(0,19)+'Z',cs='cs-'+now.replace(/[-:TZ]/g,'')+'-'+Math.random().toString(36).slice(2,6),ak=Object.values(A).sort((a,b)=>a.i-b.i);
+ R.forEach((r,i)=>{if(!PXI[r.f])return;const b={};
+  if(mode=='rst'){if(r.sent){b.latitude=r.lat0;b.longitude=r.lon0}if(r.hid)b.visibility=PXI[r.f].vis}
+  else{if(mode=='one'?i==sel:mv(r)){b.latitude=+r.lat.toFixed(8);b.longitude=+r.lon.toFixed(8);if($('pxh').checked&&H[i]!=null)b.heading=Math.round((((H[i]+off)%360)+360)%360)}
+   if(b.latitude!=null&&tg){const c=mkCal(r,i,cs,now,ak);if(c){const d=semDiff(PXI[r.f].sem||[],semOf(c.j));if(d.length){b.semantics=d;b._cal=c.j}}}
+   if(mode!='one'&&$('pxv').checked&&!r.keep&&!r.hid)b.visibility='owner-only'}
+  if(Object.keys(b).length)job.push({r,b})});
+ if(!job.length){$('pxs').textContent=mode=='one'?'Sélectionnez d’abord une photo.':'Rien à envoyer.';return}
+ if(mode!='one'&&!confirm((mode=='rst'?'Rétablir ':'Envoyer ')+job.length+' modification(s) à '+PXS.base+' ?'))return;
+ let ok=0;const fail=[];
+ for(let k=0;k<job.length;k+=3){$('pxs').textContent='Envoi… '+k+' / '+job.length;
+  await Promise.all(job.slice(k,k+3).map(async({r,b})=>{try{const cj=b._cal;delete b._cal;await pxPatch(r,b);ok++;if(cj){PXI[r.f].sem=semOf(cj);r.cal=cj}
+   if(mode=='rst'){if(b.latitude!=null){r.lat=r.lat0;r.lon=r.lon0;r.sent=false}if(b.visibility){r.hid=false}}
+   else{if(b.latitude!=null){r.sent=true;PXSENT=true}if(b.visibility)r.hid=true;if(b.heading!=null)PXI[r.f].hd=b.heading}}
+   catch(e){fail.push(r.f+' : '+e.message)}}))}
+ if(mode=='rst'){calc();draw()}
+ $('pxs').innerHTML=`<b>${ok}</b> / ${job.length} modification(s) ${mode=='rst'?'rétablie(s)':'envoyée(s)'}${fail.length?` · <b>${fail.length} échec(s)</b> : ${fail.slice(0,2).join(' ; ')}`:''}`}
+$('pxload').onclick=pxLoad;$('pxtest').onclick=pxTest;$('pxone').onclick=()=>pxSend('one');$('pxall').onclick=()=>pxSend('all');$('pxrst').onclick=()=>pxSend('rst');
+
+// ---------- Bloc de résumé fixe (haut du panneau de droite) ----------
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function sum(){const el=$('sumx');if(!el)return;
+ const src=SRC?(SRC.t=='dossier'?'📁 Dossier « '+SRC.n+' »':SRC.t=='csv'?'📄 CSV « '+SRC.n+' »':'☁ Panoramax '+SRC.n):'Aucune séquence chargée';
+ let o=`<div><b>${esc(src)}</b></div>`;
+ if(R.length){const kept=R.filter(r=>r.keep).length,a=R[0].g,z=R[R.length-1].g,d1=new Date(a*1000).toISOString(),d2=new Date(z*1000).toISOString(),km=R.reduce((t,r)=>t+r.d,0)/1000,s=z-a,
+   day=d1.slice(0,10)+(d2.slice(0,10)!=d1.slice(0,10)?' → '+d2.slice(0,10):'');
+  o+=`<div>${R.length} photos · <b>${kept}</b> gardées${R.length-kept?` · ${R.length-kept} exclues`:''}${META.ng?` · ${META.ng} sans GPS ignorées`:''}</div>`
+   +`<div>📅 ${day} · ${d1.slice(11,16)} → ${d2.slice(11,16)} UTC (${Math.floor(s/3600)} h ${pad(Math.floor(s%3600/60))} min) · ${km.toFixed(1)} km${META.mk?' · '+esc(META.mk):''}${META.w?` · ${META.w}×${META.h}`:''}</div>`}
+ const ch=[],on=(t,c)=>ch.push(`<span class="chip ${c||''}">${t}</span>`),na=Object.keys(A).length,b=document.body.classList;
+ if(b.contains('ex'))on('🔍 Mode examen'+(b.contains('fl')?' · fenêtre flottante':''),'g');
+ if(pl)on('▶ Lecture '+$('spd').value+' ph/s'+($('pa').checked?' · pause aux repères':''),'g');
+ if(na||$('alat').checked)on(`⚓ ${na} ancre(s) · chaise musicale ±${$('nmax').value}${$('rnd').checked?' · arrondi':''}${$('alat').checked?` · latéral ≤ ${$('lmax').value} m`:''}`,na?'g':'');
+ if(CL.length){const d=CL.filter(c=>c.st=='done').length,a=CL.filter(c=>c.st=='auto').length;on(`⧉ ${CL.length} cluster(s) : ${d} arbitré(s), ${a} auto`,d+a?'g':'')}
+ if(LM.length)on(`📍 ${LM.length} repère(s) OSM`);
+ if(R.length)on(`✍ Écriture : ${$('wd').value=='o'?'écrase les originaux':'sous-dossier « calees »'}${$('wh').checked?' + cap':''}`,$('wd').value=='o'?'w':'');
+ {const nc=R.filter(r=>r.cal).length;if(nc)on(`🕓 ${nc} photo(s) avec historique de calage (EXIF)`,'g')}
+ if(LASTSAVE)on('💾 session enregistrée à '+LASTSAVE,'g');
+ if(SRC&&SRC.t=='panoramax')on(`☁ Envoi${$('pxh').checked?' + cap':''}${$('pxv').checked?' + masquage des exclues':''} · ${$('pxtok').value?'jeton saisi':'pas de jeton'}`,$('pxtok').value?'':'w');
+ o+='<div class="chips">'+ch.join('')+'</div>';
+ if(LAST)o+=`<div class="la">Dernière action : ${esc(LAST)}</div>`;
+ if(o!==sum.o){sum.o=o;el.innerHTML=o}}
+$('sumt').onclick=()=>{$('sum').classList.toggle('c');$('sumt').textContent=$('sum').classList.contains('c')?'▴':'▾'};
+new ResizeObserver(()=>document.documentElement.style.setProperty('--sumh',$('sum').offsetHeight+'px')).observe($('sum'));
+['wp','pxs'].forEach(id=>new MutationObserver(m=>{const t=m[0].target,el=$(id);if(el.textContent.trim()){LAST=(id=='wp'?'écriture — ':'Panoramax — ')+el.textContent.trim().slice(0,110);sum()}}).observe($(id),{childList:true,characterData:true,subtree:true}));
+document.querySelector('aside').addEventListener('change',sum);document.querySelector('aside').addEventListener('click',()=>setTimeout(sum,60));
+setInterval(sum,1000);sum();
+
+// ---------- Session de calage : sauvegarde automatique et restauration ----------
+const SKEY=()=>SRC&&R.length?SRC.t+':'+SRC.n+':'+R.length+':'+R[0].f+':'+R[R.length-1].f:null;
+function snap(){const key=SKEY();if(!key)return null;const an={};Object.values(A).forEach(a=>{an[R[a.i].f]={lat:a.lat,lon:a.lon,type:a.type}});
+ return{v:1,key,src:SRC,n:R.length,applied:APPLIED&&!PXSENT,anchors:an,excl:R.filter(r=>!r.keep).map(r=>r.f),seen:R.filter(r=>r.sn).map(r=>r.f),cd:CD,
+  par:{nmax:$('nmax').value,lmax:$('lmax').value,crad:$('crad').value,cmin:$('cmin').value,hoff:$('hoff').value,wd:$('wd').value,rnd:$('rnd').checked,alat:$('alat').checked,wh:$('wh').checked}}}
+function restore(s){const ix={};R.forEach((r,i)=>ix[r.f]=i);A={};
+ for(const f in s.anchors||{}){const i=ix[f];if(i!=null){const a=s.anchors[f];A[i]={i,lat:a.lat,lon:a.lon,type:a.type}}}
+ R.forEach(r=>{r.keep=true});(s.excl||[]).forEach(f=>{if(ix[f]!=null)R[ix[f]].keep=false});(s.seen||[]).forEach(f=>{if(ix[f]!=null)R[ix[f]].sn=true});
+ for(const k in CD)delete CD[k];Object.assign(CD,s.cd||{});
+ const q=s.par||{};['nmax','lmax','crad','cmin','hoff','wd'].forEach(k=>{if(q[k]!=null)$(k).value=q[k]});['rnd','alat','wh'].forEach(k=>{if(q[k]!=null)$(k).checked=q[k]});
+ if(s.applied&&Object.keys(A).length)redis();else APPLIED=false;
+ calc();detect()}
+async function trySession(){const k=SKEY();if(!k)return;let s=null;
+ if(DIR&&SRC.t=='dossier'){try{const j=JSON.parse(await(await(await DIR.getFileHandle('calage_session.json')).getFile()).text());if(j.key===k)s=j}catch(e){}}
+ if(!s){try{const t=localStorage.getItem('calage:'+k);if(t)s=JSON.parse(t)}catch(e){}}
+ if(!s)return;
+ if(confirm(`Un calage enregistré le ${String(s.at||'').slice(0,16).replace('T',' ')} a été retrouvé pour cette source (${Object.keys(s.anchors||{}).length} ancre(s), ${(s.excl||[]).length} photo(s) exclue(s), ${(s.seen||[]).length} examinée(s)).\nLe restaurer ?`))restore(s)}
+async function autosave(){const s=snap();if(!s||(!Object.keys(s.anchors).length&&!s.excl.length&&!s.seen.length))return;
+ const j=JSON.stringify(s);if(j===SAVED)return;SAVED=j;s.at=new Date().toISOString();const t=JSON.stringify(s),where=[];
+ try{localStorage.setItem('calage:'+s.key,t);where.push('navigateur')}catch(e){}
+ if(DIR&&SRC.t=='dossier'){try{const w=await(await DIR.getFileHandle('calage_session.json',{create:true})).createWritable();await w.write(t);await w.close();where.push('dossier')}catch(e){}}
+ LASTSAVE=new Date().toLocaleTimeString('fr-FR').slice(0,5)+' ('+where.join(' + ')+')'}
+setInterval(autosave,3000);
+$('sesx').onclick=()=>{const s=snap();if(!s){$('wp').textContent='Rien à enregistrer.';return}s.at=new Date().toISOString();dl('calage_'+String(SRC.n).replace(/[^\w.-]+/g,'_')+'.json',JSON.stringify(s))};
+$('sesi').onchange=async e=>{try{const s=JSON.parse(await e.target.files[0].text());if(!R.length){alert('Chargez d’abord le dossier ou la séquence.');return}
+ if(s.key!==SKEY()&&!confirm('Ce calage a été enregistré pour une autre source ('+((s.src||{}).n||'?')+', '+s.n+' photos). Tenter de l’appliquer quand même ?'))return;restore(s)}catch(er){alert('Fichier de calage illisible : '+er.message)}};
+</script></body></html>
